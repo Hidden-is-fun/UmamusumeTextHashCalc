@@ -65,6 +65,7 @@ void CUmamusumeTextHashCalcDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Text(pDX, IDC_EDIT1, m_text);
 	DDX_Text(pDX, IDC_EDIT2, m_result);
+	DDX_Text(pDX, IDC_EDIT3, m_result2);
 }
 
 BEGIN_MESSAGE_MAP(CUmamusumeTextHashCalcDlg, CDialogEx)
@@ -173,7 +174,15 @@ void CUmamusumeTextHashCalcDlg::OnBnClickedButton1()
 			_str += str[i];
 	// m_result = to_string(_str.length()).c_str();
 	auto result = std::hash<wstring>{}(_str);
+
+	_str = L"";
+	for (int i = 0; i < str.length(); i++)
+		if (str[i] != '\r' && str[i] != ',' && str[i] != '\n')
+			_str += str[i];
+	auto result2 = std::hash<wstring>{}(_str);
+
 	m_result = to_string(result).c_str();
+	m_result2 = to_string(result2).c_str();
 	UpdateData(FALSE);
 }
 
