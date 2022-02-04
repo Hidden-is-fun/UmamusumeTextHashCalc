@@ -34,6 +34,7 @@ protected:
 public:
 	CString m_text;
 	CString m_result;
+	CString m_result2;
 	afx_msg void OnBnClickedButton1();
 	afx_msg void OnBnClickedButton2();
 };
