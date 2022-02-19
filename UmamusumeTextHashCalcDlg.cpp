@@ -1,19 +1,25 @@
 ﻿
 // UmamusumeTextHashCalcDlg.cpp: 实现文件
 //
-
+#pragma warning(disable : 4996)
 #include "pch.h"
 #include "framework.h"
 #include "UmamusumeTextHashCalc.h"
 #include "UmamusumeTextHashCalcDlg.h"
 #include "afxdialogex.h"
 #include <string>
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <map>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+#include <conio.h>
 using namespace std;
 
+// #include "json/json.h"
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -74,6 +80,7 @@ BEGIN_MESSAGE_MAP(CUmamusumeTextHashCalcDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BUTTON1, &CUmamusumeTextHashCalcDlg::OnBnClickedButton1)
 	ON_BN_CLICKED(IDC_BUTTON2, &CUmamusumeTextHashCalcDlg::OnBnClickedButton2)
+	ON_BN_CLICKED(IDC_BUTTON3, &CUmamusumeTextHashCalcDlg::OnBnClickedButton3)
 END_MESSAGE_MAP()
 
 
@@ -163,7 +170,6 @@ HCURSOR CUmamusumeTextHashCalcDlg::OnQueryDragIcon()
 }
 
 
-
 void CUmamusumeTextHashCalcDlg::OnBnClickedButton1()
 {
 	UpdateData(TRUE);
@@ -192,4 +198,210 @@ void CUmamusumeTextHashCalcDlg::OnBnClickedButton2()
 	UpdateData(TRUE);
 	m_text = L"";
 	UpdateData(FALSE);
+}
+
+
+void TcharToChar(const TCHAR* tchar, char* _char)
+{
+	int iLength;
+	//获取字节长度   
+	iLength = WideCharToMultiByte(CP_ACP, 0, tchar, -1, NULL, 0, NULL, NULL);
+	//将tchar值赋给_char    
+	WideCharToMultiByte(CP_ACP, 0, tchar, -1, _char, iLength, NULL, NULL);
+}
+
+
+char* getfileAll(char* fname)
+{
+	FILE* fp;
+	char* str;
+	char txt[1000];
+	int filesize;
+	if ((fp = fopen(fname, "r")) == NULL) {
+		printf("open file %s fail \n", fname);
+		return NULL;
+	}
+
+	fseek(fp, 0, SEEK_END);
+
+	filesize = ftell(fp);
+	str = (char*)malloc(filesize);
+	str[0] = 0;
+
+	rewind(fp);
+	while ((fgets(txt, 1000, fp)) != NULL) {
+		strcat(str, txt);
+	}
+	fclose(fp);
+	return str;
+}
+
+int writefileAll(char* fname, const char* data)
+{
+	FILE* fp;
+	if ((fp = fopen(fname, "w")) == NULL)
+	{
+		printf("open file %s fail \n", fname);
+		return 1;
+	}
+
+	fprintf(fp, "%s", data);
+	fclose(fp);
+
+	return 0;
+}
+
+
+wstring towstring(string str)
+{
+	const char* ptr = str.c_str();
+	wstring result;
+	mbstate_t state;
+	memset(&state, 0, sizeof state);
+	const char* end = ptr + strlen(ptr);
+	int len;
+	wchar_t wc;
+	while ((len = mbrtowc(&wc, ptr, end - ptr, &state)) > 0) {
+
+		result.append(1, wc);
+		ptr += len;
+	}
+	return result;
+}
+
+template<typename T> string toString(const T& t) {
+	return to_string(t);
+}
+
+wstring UTF8ToUnicode(const string& str)
+{
+	int len = 0;
+	len = str.length();
+	int unicodeLen = ::MultiByteToWideChar(CP_UTF8,
+		0,
+		str.c_str(),
+		-1,
+		NULL,
+		0);
+	wchar_t* pUnicode;
+	pUnicode = new wchar_t[unicodeLen + 1];
+	memset(pUnicode, 0, (unicodeLen + 1) * sizeof(wchar_t));
+	::MultiByteToWideChar(CP_UTF8,
+		0,
+		str.c_str(),
+		-1,
+		(LPWSTR)pUnicode,
+		unicodeLen);
+	wstring rt;
+	rt = (wchar_t*)pUnicode;
+	delete pUnicode;
+	return rt;
+}
+
+
+void CUmamusumeTextHashCalcDlg::OnBnClickedButton3()
+{
+	// AllocConsole();
+	TCHAR szBuffer[MAX_PATH] = { 0 };
+	BROWSEINFO bi;
+	ZeroMemory(&bi, sizeof(BROWSEINFO));
+	bi.hwndOwner = NULL;
+	bi.pszDisplayName = szBuffer;
+	bi.lpszTitle = _T("请选择文本文件, 一行一条文本, 换行符使用\"\\n\"代替");
+	bi.ulFlags = BIF_BROWSEINCLUDEFILES;
+	LPITEMIDLIST idl = SHBrowseForFolder(&bi);
+	if (NULL == idl)
+	{
+		return;
+	}
+	SHGetPathFromIDList(idl, szBuffer);
+	// _cwprintf(L"%ls\n", szBuffer);
+	char* fname = (char*)malloc(100 * sizeof(char));
+	TcharToChar(szBuffer, fname);
+	_cprintf("%s\n", fname);
+
+	// 读取配置
+
+	ifstream in(fname);
+	string line;
+	string out = "";
+	string _tmp = "";
+	long lcount = 0;
+	bool rp_flg = false;
+	std::map<string, int> in_hash;
+
+	while (getline(in, line)) {
+		_tmp = "";
+		lcount++;
+		for (int i = 0; i < line.length(); i++) {
+			if (line[i] == '\\') {
+				rp_flg = true;
+				continue;
+			}
+			else if (rp_flg && line[i] == 'n') {
+				rp_flg = false;
+				_tmp += '\n';
+			}
+			else {
+				rp_flg = false;
+				_tmp += line[i];
+			}
+
+		}
+
+		auto hash = std::hash<wstring>{}(UTF8ToUnicode(_tmp));
+		string hash_str = toString(hash);
+
+		if (in_hash.find(hash_str) == in_hash.end()) {
+			out += "\"" + hash_str + "\": \"" + line + "\",\n";
+			in_hash.insert({hash_str, 1});
+		}
+	}
+	out = out.substr(0, out.length() - 2);
+	out = "{\n" + out + "\n}\n";
+
+	char* save_name = "_save.json";
+	save_name = strcat(fname, save_name);
+	writefileAll(save_name, out.c_str());
+
+	stringstream fmt;
+	fmt << "已输出至: " << save_name << "\n共转换了 " << lcount << "条文本";
+	MessageBoxA(NULL, fmt.str().c_str(), "转换完成", MB_OK);
+
+	/*
+	char* jsondata = getfileAll(fname);
+	Json::Reader reader;
+	Json::Value root;
+
+
+	Json::FastWriter writer;
+	Json::Value out_value;
+
+
+	if (reader.parse(jsondata, root)) {
+		Json::Value::Members mem = root.getMemberNames();
+		Json::Value::Members::iterator it;
+		size_t hash = 0;
+
+
+		for (it = mem.begin(); it != mem.end(); it++)
+		{
+
+			if (root[*it].type() == Json::stringValue)
+			{
+				hash = std::hash<wstring>{}(towstring(root[*it].asString()));
+				out_value[toString(hash)] = root[*it].asString();
+			}
+			else {
+				_cprintf("%s\n", "yinyinyin");
+			}
+
+		}
+	}
+
+	_cprintf("%s\n", "load_json_fin");
+
+	string out_data = writer.write(out_value);
+	writefileAll("C:/Users/Y7000/Desktop/out.json", out_data.c_str());
+	*/
 }
